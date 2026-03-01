@@ -114,5 +114,12 @@ wget -nc -P $BASE/vae \
   "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_video_vae_bf16.safetensors"
 wget -nc -P $BASE/vae \
   "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_audio_vae_bf16.safetensors"
+# text encoders
+mkdir -p $BASE/text_encoders/LTX2
+wget -nc -P $BASE/text_encoders/LTX2 \
+  "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors"
 
+# Gemma 3 12B text encoder
+wget -nc -P $BASE/text_encoders/LTX2 \
+  "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors"
 echo "=== 全て完了！ ==="
