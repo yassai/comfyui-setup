@@ -2,6 +2,8 @@
 
 echo "=== ComfyUI パス自動検出 ==="
 COMFY=""
+
+# よくある候補を順にチェック
 for candidate in \
   /app/ComfyUI \
   /workspace/ComfyUI \
@@ -16,21 +18,26 @@ for candidate in \
   fi
 done
 
-# 上記で見つからない場合はfindで探す
+# 見つからない場合はfindで探す
 if [ -z "$COMFY" ]; then
   echo "候補から見つからないのでfindで検索中..."
   COMFY=$(find / -maxdepth 6 -name "main.py" -path "*/ComfyUI/*" 2>/dev/null | head -1 | xargs dirname)
 fi
 
 if [ -z "$COMFY" ]; then
-  echo "❌ ComfyUIが見つかりませんでした。スクリプトを終了します。"
+  echo "❌ ComfyUIが見つかりませんでした。終了します。"
   exit 1
 fi
 
 BASE=$COMFY/models
 CUSTOM=$COMFY/custom_nodes
+
+# スクリプトの保存先をCOMFYの親ディレクトリに
+WORKDIR=$(dirname $COMFY)
+
+echo "COMFY: $COMFY"
 echo "BASE: $BASE"
-echo "CUSTOM: $CUSTOM"
+echo "WORKDIR: $WORKDIR"
 
 echo "=== extra_model_paths.yaml 設定 ==="
 cat > $COMFY/extra_model_paths.yaml << EOF
@@ -82,7 +89,6 @@ echo "✅ ワークフロー登録完了"
 
 echo "=== LTX-2 モデルダウンロード開始 ==="
 
-# --- unet/diffusion models ---
 mkdir -p $BASE/unet/LTX2
 
 # マージモデル SFW版
@@ -97,12 +103,12 @@ wget -nc -O $BASE/unet/LTX2/ltx2-phr00tmerge-nsfw-v62.safetensors \
 wget -nc -P $BASE/unet/LTX2 \
   "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/diffusion_models/ltx-2-19b-dev-fp8_transformer_only.safetensors"
 
-# --- text encoders ---
+# text encoders
 mkdir -p $BASE/text_encoders/LTX2
 wget -nc -P $BASE/text_encoders/LTX2 \
   "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors"
 
-# --- VAE ---
+# VAE
 mkdir -p $BASE/vae
 wget -nc -P $BASE/vae \
   "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_video_vae_bf16.safetensors"
