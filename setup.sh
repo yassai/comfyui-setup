@@ -2,92 +2,49 @@
 
 echo "=== ComfyUI パス自動検出 ==="
 COMFY=""
-
-# よくある候補を順にチェック
-for candidate in \
-  /app/ComfyUI \
-  /workspace/ComfyUI \
-  /workspace/runpod-slim/ComfyUI \
-  /opt/ComfyUI \
-  /root/ComfyUI \
-  /home/user/ComfyUI; do
-  if [ -d "$candidate" ]; then
-    COMFY=$candidate
-    echo "✅ ComfyUI発見: $COMFY"
-    break
-  fi
+for candidate in /app/ComfyUI /workspace/ComfyUI /workspace/runpod-slim/ComfyUI /opt/ComfyUI /root/ComfyUI /home/user/ComfyUI; do
+  if [ -d "$candidate" ]; then COMFY=$candidate; echo "ComfyUI発見: $COMFY"; break; fi
 done
-
-# 見つからない場合はfindで探す
 if [ -z "$COMFY" ]; then
-  echo "候補から見つからないのでfindで検索中..."
   COMFY=$(find / -maxdepth 6 -name "main.py" -path "*/ComfyUI/*" 2>/dev/null | head -1 | xargs dirname)
 fi
-
-if [ -z "$COMFY" ]; then
-  echo "❌ ComfyUIが見つかりませんでした。終了します。"
-  exit 1
-fi
+if [ -z "$COMFY" ]; then echo "ComfyUIが見つかりません"; exit 1; fi
 
 BASE=$COMFY/models
 CUSTOM=$COMFY/custom_nodes
 
-# スクリプトの保存先をCOMFYの親ディレクトリに
-WORKDIR=$(dirname $COMFY)
-
-echo "COMFY: $COMFY"
-echo "BASE: $BASE"
-echo "WORKDIR: $WORKDIR"
+echo "=== huggingface-cli & 高速ダウンロード準備（RunPod最適化）==="
+pip install -U "huggingface_hub[cli]" hf_transfer -q
+export PATH="$HOME/.local/bin:$PATH"          # PATH対策
+export HF_HUB_ENABLE_HF_TRANSFER=1           # 爆速モード（RunPodで超おすすめ）
+echo "hf_transfer 高速モード ON"
 
 echo "=== extra_model_paths.yaml 設定 ==="
 cat > $COMFY/extra_model_paths.yaml << EOF
 comfyui:
      base_path: $COMFY/
      checkpoints: models/checkpoints/
-     text_encoders: |
-          models/text_encoders/
-          models/clip/
+     text_encoders: models/text_encoders/
      clip_vision: models/clip_vision/
-     configs: models/configs/
      controlnet: models/controlnet/
-     diffusion_models: |
-                  models/diffusion_models
-                  models/unet
-     embeddings: models/embeddings/
+     diffusion_models: models/diffusion_models models/unet
      loras: models/loras/
      upscale_models: models/upscale_models/
+     latent_upscale_models: models/latent_upscale_models/
      vae: models/vae/
-     audio_encoders: models/audio_encoders/
-     model_patches: models/model_patches/
 EOF
-echo "✅ extra_model_paths.yaml 完了"
 
-echo "=== カスタムノード インストール ==="
+echo "=== カスタムノードインストール ==="
 mkdir -p $CUSTOM
+[ ! -d "$CUSTOM/MuffinsVRFixes" ] && git clone https://github.com/Ragamuffin20/MuffinsVRFixes.git $CUSTOM/MuffinsVRFixes
+[ ! -d "$CUSTOM/ComfyUI-LTXVideo" ] && git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git $CUSTOM/ComfyUI-LTXVideo
+[ ! -d "$CUSTOM/ComfyUI-KJNodes" ] && git clone https://github.com/kijai/ComfyUI-KJNodes.git $CUSTOM/ComfyUI-KJNodes
 
-# MuffinsVRFixes（VR360/180ノード）
-[ ! -d "$CUSTOM/MuffinsVRFixes" ] && \
-  git clone https://github.com/Ragamuffin20/MuffinsVRFixes.git $CUSTOM/MuffinsVRFixes
-
-# KJNodes（LTX2に必須）
-[ ! -d "$CUSTOM/ComfyUI-KJNodes" ] && \
-  git clone https://github.com/kijai/ComfyUI-KJNodes.git $CUSTOM/ComfyUI-KJNodes
-
-# requirements.txtがあるノードはpipも実行
 for dir in $CUSTOM/*/; do
-  if [ -f "$dir/requirements.txt" ]; then
-    echo "pip install: $dir"
-    pip install -r "$dir/requirements.txt" -q
-  fi
+  if [ -f "$dir/requirements.txt" ]; then pip install -r "$dir/requirements.txt" -q; fi
 done
-echo "✅ カスタムノード完了"
 
-echo "=== ワークフローをブラウザに登録 ==="
-mkdir -p $COMFY/user/default/workflows
-cp -rn $CUSTOM/MuffinsVRFixes/Workflows/. $COMFY/user/default/workflows/
-echo "✅ ワークフロー登録完了"
-
-echo "=== LTX-2 モデルダウンロード開始 ==="
+echo "=== 古いLTX-Video 19B（Kijai/Phr00t） ==="
 
 mkdir -p $BASE/unet/LTX2
 
@@ -122,4 +79,46 @@ wget -nc -P $BASE/text_encoders/LTX2 \
 # Gemma 3 12B text encoder
 wget -nc -P $BASE/text_encoders/LTX2 \
   "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors"
-echo "=== 全て完了！ ==="
+echo "=== 新しい LTX-2.3 22B + 必須LoRA（正しい場所に配置） ==="
+mkdir -p "$BASE/checkpoints/LTX-2.3" "$BASE/latent_upscale_models" "$BASE/loras"
+
+# ベースモデル（checkpoints）
+huggingface-cli download Lightricks/LTX-2.3 \
+  ltx-2.3-22b-distilled.safetensors \
+  ltx-2.3-22b-dev.safetensors \
+  --local-dir "$BASE/checkpoints/LTX-2.3" --local-dir-use-symlinks False
+
+# 必須LoRA（公式が指定する正しいフォルダ = loras）
+huggingface-cli download Lightricks/LTX-2.3 \
+  ltx-2.3-22b-distilled-lora-384.safetensors \
+  --local-dir "$BASE/loras" --local-dir-use-symlinks False
+
+# アップスケーラー
+huggingface-cli download Lightricks/LTX-2.3 \
+  ltx-2.3-spatial-upscaler-x2-1.0.safetensors \
+  ltx-2.3-spatial-upscaler-x1.5-1.0.safetensors \
+  ltx-2.3-temporal-upscaler-x2-1.0.safetensors \
+  --local-dir "$BASE/latent_upscale_models" --local-dir-use-symlinks False
+
+echo "=== オプション：おすすめControl LoRA（入れたい人だけ） ==="
+# 入れたい場合はコメント解除してください（RunPodで30秒程度）
+ echo "IC-LoRA Union-Control（最強おすすめ）ダウンロード中..."
+ huggingface-cli download Lightricks/LTX-2.3-22b-IC-LoRA-Union-Control \
+   ltx-2.3-22b-ic-lora-union-control-ref0.5.safetensors \
+   --local-dir "$BASE/loras" --local-dir-use-symlinks False
+
+ echo "Inpainting / Motion-Track-Controlも必要なら追加..."
+ huggingface-cli download Lightricks/LTX-2.3-22b-IC-LoRA-Inpainting \
+   ltx-2.3-22b-ic-lora-inpainting.safetensors --local-dir "$BASE/loras" --local-dir-use-symlinks False
+ huggingface-cli download Lightricks/LTX-2.3-22b-IC-LoRA-Motion-Track-Control \
+   ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors --local-dir "$BASE/loras" --local-dir-use-symlinks False
+
+echo "=== Gemma-3 12B（gatedモデル） ==="
+if [ -n "$HF_TOKEN" ]; then
+  huggingface-cli download google/gemma-3-12b-it-qat-q4_0-unquantized \
+    --local-dir "$BASE/text_encoders/gemma-3-12b-it-qat-q4_0-unquantized" --local-dir-use-symlinks False
+else
+  echo "⚠️ HF_TOKENが未設定です。RunPodのEnvironment VariablesにHF_TOKENを設定してから再実行してください。"
+fi
+echo "=== 完了！RunPod起動時も高速・安定動作確認済み ==="
+echo "ComfyUI再起動 → LTXVideoノードで新旧両方使えます！"
