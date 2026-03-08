@@ -45,71 +45,120 @@ for dir in $CUSTOM/*/; do
 done
 
 echo "=== 古いLTX-Video 19B（Kijai/Phr00t） ==="
-mkdir -p $BASE/unet/LTX2
-mkdir -p $BASE/text_encoders/LTX2
-mkdir -p $BASE/vae
-mkdir -p $BASE/checkpoints/LTX-2.3
-mkdir -p $BASE/latent_upscale_models
-mkdir -p $BASE/loras
+COMFY="${COMFY:-$HOME/ComfyUI}"
+
+echo "=== ComfyUI path: $COMFY ==="
+
+# ディレクトリ作成
+mkdir -p "$COMFY/models/unet"
+mkdir -p "$COMFY/models/loras"
+mkdir -p "$COMFY/models/text_encoders"
+mkdir -p "$COMFY/models/vae"
+mkdir -p "$COMFY/models/upscale_models"
+mkdir -p "$COMFY/models/depthanything"
+mkdir -p "$COMFY/custom_nodes/ComfyUI-Frame-Interpolation/ckpts/rife"
 
 # ===== ダウンロード関数 =====
 hf_dl() {
   local repo="$1"
   local file="$2"
   local dest="$3"
-  local out_name="${4:-}"
-  
-  if [ -n "$out_name" ]; then
-    local target="$dest/$out_name"
-  else
-    local target="$dest/$(basename $file)"
-  fi
-  
+  local target="$dest/$(basename "$file")"
   if [ -f "$target" ]; then
-    echo "[SKIP] $target already exists"
+    echo "[SKIP] $(basename "$file") already exists"
     return
   fi
-  
-  hf download "$repo" "$file" \
+  echo "[DL] $repo / $file → $dest"
+  huggingface-cli download "$repo" "$file" \
     --local-dir "$dest" \
-    --local-dir-use-symlinks False \
-    ${out_name:+--filename "$out_name"}
+    --local-dir-use-symlinks False
 }
 
-# ===== マージモデル SFW版 =====
-hf_dl "Phr00t/LTX2-Rapid-Merges" \
-  "sfw/ltx2-phr00tmerge-sfw-v5.safetensors" \
-  "$BASE/unet/LTX2"
+# ===== カスタムノード git clone =====
+clone_node() {
+  local repo_url="$1"
+  local dir_name="$2"
+  local dest="$COMFY/custom_nodes/$dir_name"
+  if [ -d "$dest" ]; then
+    echo "[SKIP] custom_node $dir_name already exists"
+    return
+  fi
+  echo "[CLONE] $repo_url"
+  git clone "$repo_url" "$dest"
+}
 
-# ===== マージモデル NSFW版 =====
-hf_dl "Phr00t/LTX2-Rapid-Merges" \
-  "nsfw/ltx2-phr00tmerge-nsfw-v62.safetensors" \
-  "$BASE/unet/LTX2" \
-  "ltx2-phr00tmerge-nsfw-v62.safetensors"
+echo ""
+echo "=== [1/5] カスタムノード ==="
+clone_node "https://github.com/Ragamuffin20/MuffinsVRFixes"         "MuffinsVRFixes"
+clone_node "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite" "ComfyUI-VideoHelperSuite"
+clone_node "https://github.com/kijai/ComfyUI-DepthAnythingV2"        "ComfyUI-DepthAnythingV2"
+clone_node "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation" "ComfyUI-Frame-Interpolation"
+clone_node "https://github.com/yushan777/ComfyUI-Y7-SBS"             "ComfyUI-Y7-SBS"
+clone_node "https://github.com/city96/ComfyUI-GGUF"                  "ComfyUI-GGUF"
+clone_node "https://github.com/rgthree/rgthree-comfy"                "rgthree-comfy"
+clone_node "https://github.com/ltdrdata/ComfyUI-Impact-Pack"         "ComfyUI-Impact-Pack"
+clone_node "https://github.com/kijai/ComfyUI-KJNodes"                "ComfyUI-KJNodes"
+clone_node "https://github.com/kijai/ComfyUI-LTXVideo"               "ComfyUI-LTXVideo"
+clone_node "https://github.com/cubiq/ComfyUI_essentials"             "ComfyUI_essentials"
 
-# ===== dev fp8 =====
+echo ""
+echo "=== [2/5] Wan 2.1 VACE モデル (UNet / LoRA / Text Encoder / VAE) ==="
+hf_dl "QuantStack/Wan2.1_14B_VACE-GGUF" \
+  "Wan2.1_14B_VACE-Q8_0.gguf" \
+  "$COMFY/models/unet"
+
+hf_dl "Kijai/WanVideo_comfy" \
+  "Wan21_CausVid_14B_T2V_lora_rank32.safetensors" \
+  "$COMFY/models/loras"
+
+hf_dl "Comfy-Org/Wan_2.1_ComfyUI_repackaged" \
+  "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" \
+  "$COMFY/models/text_encoders"
+
+hf_dl "Comfy-Org/Wan_2.1_ComfyUI_repackaged" \
+  "split_files/vae/wan_2.1_vae.safetensors" \
+  "$COMFY/models/vae"
+
+echo ""
+echo "=== [3/5] LTX-2 モデル (UNet / Text Encoder / VAE / LoRA) ==="
 hf_dl "Kijai/LTXV2_comfy" \
-  "diffusion_models/ltx-2-19b-dev-fp8_transformer_only.safetensors" \
-  "$BASE/unet/LTX2"
+  "diffusion_models/ltx-2-19b-dev-Q5_K_S.gguf" \
+  "$COMFY/models/unet"
 
-# ===== text encoders =====
+hf_dl "bartowski/gemma-3-12b-it-GGUF" \
+  "gemma-3-12b-it-IQ4_XS.gguf" \
+  "$COMFY/models/text_encoders"
+
 hf_dl "Kijai/LTXV2_comfy" \
   "text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors" \
-  "$BASE/text_encoders/LTX2"
+  "$COMFY/models/text_encoders"
 
-# ===== Gemma 3 12B text encoder =====
-hf_dl "Comfy-Org/ltx-2" \
-  "split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors" \
-  "$BASE/text_encoders/LTX2"
-
-# ===== VAE =====
 hf_dl "Kijai/LTXV2_comfy" \
   "VAE/LTX2_video_vae_bf16.safetensors" \
-  "$BASE/vae"
+  "$COMFY/models/vae"
 
 hf_dl "Kijai/LTXV2_comfy" \
-  "VAE/LTX2_audio_vae_bf16.safetensors" \
-  "$BASE/vae"
+  "loras/ltx-2-19b-ic-lora-detailer.safetensors" \
+  "$COMFY/models/loras"
+
+hf_dl "Kijai/LTXV2_comfy" \
+  "loras/ltx-2-19b-distilled-lora-384.safetensors" \
+  "$COMFY/models/loras"
+
+echo ""
+echo "=== [4/5] アップスケーラー / フレーム補間 / 深度推定 ==="
+hf_dl "skbhadra/ClearRealityV1" \
+  "4x-ClearRealityV1.pth" \
+  "$COMFY/models/upscale_models"
+
+hf_dl "Isi99999/Frame_Interpolation_Models" \
+  "rife49.pth" \
+  "$COMFY/custom_nodes/ComfyUI-Frame-Interpolation/ckpts/rife"
+
+hf_dl "Kijai/DepthAnythingV2-safetensors" \
+  "depth_anything_v2_vitl_fp16.safetensors" \
+  "$COMFY/models/depthanything"
+
 
 
 # ベースモデル（checkpoints）
