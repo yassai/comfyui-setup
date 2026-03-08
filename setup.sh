@@ -45,56 +45,86 @@ for dir in $CUSTOM/*/; do
 done
 
 echo "=== 古いLTX-Video 19B（Kijai/Phr00t） ==="
-
 mkdir -p $BASE/unet/LTX2
-
-# マージモデル SFW版
-wget -nc -P $BASE/unet/LTX2 \
-  "https://huggingface.co/Phr00t/LTX2-Rapid-Merges/resolve/main/sfw/ltx2-phr00tmerge-sfw-v5.safetensors"
-
-# マージモデル NSFW版
-wget -nc -O $BASE/unet/LTX2/ltx2-phr00tmerge-nsfw-v62.safetensors \
-  "https://huggingface.co/Phr00t/LTX2-Rapid-Merges/resolve/main/nsfw/ltx2-phr00tmerge-nsfw-v62.safetensors"
-
-# dev fp8
-wget -nc -P $BASE/unet/LTX2 \
-  "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/diffusion_models/ltx-2-19b-dev-fp8_transformer_only.safetensors"
-
-# text encoders
 mkdir -p $BASE/text_encoders/LTX2
-wget -nc -P $BASE/text_encoders/LTX2 \
-  "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors"
-
-# VAE
 mkdir -p $BASE/vae
-wget -nc -P $BASE/vae \
-  "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_video_vae_bf16.safetensors"
-wget -nc -P $BASE/vae \
-  "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_audio_vae_bf16.safetensors"
-# text encoders
-mkdir -p $BASE/text_encoders/LTX2
-wget -nc -P $BASE/text_encoders/LTX2 \
-  "https://huggingface.co/Kijai/LTXV2_comfy/resolve/main/text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors"
+mkdir -p $BASE/checkpoints/LTX-2.3
+mkdir -p $BASE/latent_upscale_models
+mkdir -p $BASE/loras
 
-# Gemma 3 12B text encoder
-wget -nc -P $BASE/text_encoders/LTX2 \
-  "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors"
-echo "=== 新しい LTX-2.3 22B + 必須LoRA（正しい場所に配置） ==="
-mkdir -p "$BASE/checkpoints/LTX-2.3" "$BASE/latent_upscale_models" "$BASE/loras"
+# ===== ダウンロード関数 =====
+hf_dl() {
+  local repo="$1"
+  local file="$2"
+  local dest="$3"
+  local out_name="${4:-}"
+  
+  if [ -n "$out_name" ]; then
+    local target="$dest/$out_name"
+  else
+    local target="$dest/$(basename $file)"
+  fi
+  
+  if [ -f "$target" ]; then
+    echo "[SKIP] $target already exists"
+    return
+  fi
+  
+  hf download "$repo" "$file" \
+    --local-dir "$dest" \
+    --local-dir-use-symlinks False \
+    ${out_name:+--filename "$out_name"}
+}
+
+# ===== マージモデル SFW版 =====
+hf_dl "Phr00t/LTX2-Rapid-Merges" \
+  "sfw/ltx2-phr00tmerge-sfw-v5.safetensors" \
+  "$BASE/unet/LTX2"
+
+# ===== マージモデル NSFW版 =====
+hf_dl "Phr00t/LTX2-Rapid-Merges" \
+  "nsfw/ltx2-phr00tmerge-nsfw-v62.safetensors" \
+  "$BASE/unet/LTX2" \
+  "ltx2-phr00tmerge-nsfw-v62.safetensors"
+
+# ===== dev fp8 =====
+hf_dl "Kijai/LTXV2_comfy" \
+  "diffusion_models/ltx-2-19b-dev-fp8_transformer_only.safetensors" \
+  "$BASE/unet/LTX2"
+
+# ===== text encoders =====
+hf_dl "Kijai/LTXV2_comfy" \
+  "text_encoders/ltx-2-19b-embeddings_connector_dev_bf16.safetensors" \
+  "$BASE/text_encoders/LTX2"
+
+# ===== Gemma 3 12B text encoder =====
+hf_dl "Comfy-Org/ltx-2" \
+  "split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors" \
+  "$BASE/text_encoders/LTX2"
+
+# ===== VAE =====
+hf_dl "Kijai/LTXV2_comfy" \
+  "VAE/LTX2_video_vae_bf16.safetensors" \
+  "$BASE/vae"
+
+hf_dl "Kijai/LTXV2_comfy" \
+  "VAE/LTX2_audio_vae_bf16.safetensors" \
+  "$BASE/vae"
+
 
 # ベースモデル（checkpoints）
-huggingface-cli download Lightricks/LTX-2.3 \
+hf download Lightricks/LTX-2.3 \
   ltx-2.3-22b-distilled.safetensors \
   ltx-2.3-22b-dev.safetensors \
   --local-dir "$BASE/checkpoints/LTX-2.3" --local-dir-use-symlinks False
 
 # 必須LoRA（公式が指定する正しいフォルダ = loras）
-huggingface-cli download Lightricks/LTX-2.3 \
+hf download Lightricks/LTX-2.3 \
   ltx-2.3-22b-distilled-lora-384.safetensors \
   --local-dir "$BASE/loras" --local-dir-use-symlinks False
 
 # アップスケーラー
-huggingface-cli download Lightricks/LTX-2.3 \
+hf download Lightricks/LTX-2.3 \
   ltx-2.3-spatial-upscaler-x2-1.0.safetensors \
   ltx-2.3-spatial-upscaler-x1.5-1.0.safetensors \
   ltx-2.3-temporal-upscaler-x2-1.0.safetensors \
@@ -103,19 +133,19 @@ huggingface-cli download Lightricks/LTX-2.3 \
 echo "=== オプション：おすすめControl LoRA（入れたい人だけ） ==="
 # 入れたい場合はコメント解除してください（RunPodで30秒程度）
  echo "IC-LoRA Union-Control（最強おすすめ）ダウンロード中..."
- huggingface-cli download Lightricks/LTX-2.3-22b-IC-LoRA-Union-Control \
+ hf download Lightricks/LTX-2.3-22b-IC-LoRA-Union-Control \
    ltx-2.3-22b-ic-lora-union-control-ref0.5.safetensors \
    --local-dir "$BASE/loras" --local-dir-use-symlinks False
 
  echo "Inpainting / Motion-Track-Controlも必要なら追加..."
- huggingface-cli download Lightricks/LTX-2.3-22b-IC-LoRA-Inpainting \
+ hf download Lightricks/LTX-2.3-22b-IC-LoRA-Inpainting \
    ltx-2.3-22b-ic-lora-inpainting.safetensors --local-dir "$BASE/loras" --local-dir-use-symlinks False
- huggingface-cli download Lightricks/LTX-2.3-22b-IC-LoRA-Motion-Track-Control \
+ hf download Lightricks/LTX-2.3-22b-IC-LoRA-Motion-Track-Control \
    ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors --local-dir "$BASE/loras" --local-dir-use-symlinks False
 
 echo "=== Gemma-3 12B（gatedモデル） ==="
 if [ -n "$HF_TOKEN" ]; then
-  huggingface-cli download google/gemma-3-12b-it-qat-q4_0-unquantized \
+  hf download google/gemma-3-12b-it-qat-q4_0-unquantized \
     --local-dir "$BASE/text_encoders/gemma-3-12b-it-qat-q4_0-unquantized" --local-dir-use-symlinks False
 else
   echo "⚠️ HF_TOKENが未設定です。RunPodのEnvironment VariablesにHF_TOKENを設定してから再実行してください。"
