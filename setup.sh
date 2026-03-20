@@ -69,7 +69,7 @@ hf_dl() {
     return
   fi
   echo "[DL] $repo / $file → $dest"
-  huggingface-cli download "$repo" "$file" \
+  hf download "$repo" "$file" \
     --local-dir "$dest" \
     --local-dir-use-symlinks False
 }
