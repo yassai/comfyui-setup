@@ -183,6 +183,10 @@ hf download Lightricks/LTX-2.3 \
   ltx-2.3-temporal-upscaler-x2-1.0.safetensors \
   --local-dir "$BASE/latent_upscale_models" --local-dir-use-symlinks False
 
+hf download Kim2091/ClearRealityV1 \
+  4x-ClearRealityV1_Soft.pth \
+  --local-dir "$BASE/latent_upscale_models" --local-dir-use-symlinks False
+
 echo "=== オプション：おすすめControl LoRA（入れたい人だけ） ==="
 # 入れたい場合はコメント解除してください（RunPodで30秒程度）
  echo "IC-LoRA Union-Control（最強おすすめ）ダウンロード中..."
