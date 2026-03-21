@@ -172,6 +172,10 @@ hf download Lightricks/LTX-2.3 \
   ltx-2.3-22b-distilled-lora-384.safetensors \
   --local-dir "$BASE/loras" --local-dir-use-symlinks False
 
+hf download Lightricks/LTX-2.3 \
+  ltx-2.3-22b-distilled-lora-dynamic_fro09_avg_rank_105_bf16.safetensors \
+  --local-dir "$BASE/loras" --local-dir-use-symlinks False
+
 # アップスケーラー
 hf download Lightricks/LTX-2.3 \
   ltx-2.3-spatial-upscaler-x2-1.0.safetensors \
