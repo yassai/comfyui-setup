@@ -1,6 +1,40 @@
 #!/bin/bash
 set -e
 
+# 引数の解析
+SKIP_LTX_BASE=false
+SKIP_QWEN=false
+SKIP_ACE=false
+SKIP_FLUX=false
+SKIP_ALL_MODELS=false
+
+for arg in "$@"; do
+  case $arg in
+    --skip-ltx-base)
+      SKIP_LTX_BASE=true
+      ;;
+    --skip-qwen)
+      SKIP_QWEN=true
+      ;;
+    --skip-ace)
+      SKIP_ACE=true
+      ;;
+    --skip-flux)
+      SKIP_FLUX=true
+      ;;
+    --skip-all-models)
+      SKIP_ALL_MODELS=true
+      ;;
+  esac
+done
+
+if [ "$SKIP_ALL_MODELS" = true ]; then
+  SKIP_LTX_BASE=true
+  SKIP_QWEN=true
+  SKIP_ACE=true
+  SKIP_FLUX=true
+fi
+
 echo "=== ComfyUI パス自動検出 ==="
 COMFY=""
 for candidate in /app/ComfyUI /workspace/ComfyUI /workspace/runpod-slim/ComfyUI /opt/ComfyUI /root/ComfyUI /home/user/ComfyUI; do
@@ -111,35 +145,51 @@ hf_download() {
 }
 
 # 1. LTX-2.3（動画生成の主力・Distilled推奨）
-if [ ! -f "$BASE/checkpoints/ltx-2.3-22b-distilled.safetensors" ]; then
-  echo "LTX-2.3 Distilled ダウンロード中..."
-  hf_download Lightricks/LTX-2.3 "ltx-2.3-22b-distilled.safetensors" "$BASE/checkpoints"
+if [ "$SKIP_LTX_BASE" = false ]; then
+  if [ ! -f "$BASE/checkpoints/ltx-2.3-22b-distilled.safetensors" ]; then
+    echo "LTX-2.3 Distilled ダウンロード中..."
+    hf_download Lightricks/LTX-2.3 "ltx-2.3-22b-distilled.safetensors" "$BASE/checkpoints"
+  else
+    echo "LTX-2.3 既に存在 → スキップ"
+  fi
 else
-  echo "LTX-2.3 既に存在 → スキップ"
+  echo "LTX-2.3 ダウンロードをスキップします (--skip-ltx-base)"
 fi
 
 # 2. Qwen-Image-Edit（編集特化・FP8高速版）
-if [ ! -f "$BASE/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" ]; then
-  echo "Qwen-Image-Edit ダウンロード中..."
-  hf_download Comfy-Org/Qwen-Image-Edit_ComfyUI "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" "$BASE"
+if [ "$SKIP_QWEN" = false ]; then
+  if [ ! -f "$BASE/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" ]; then
+    echo "Qwen-Image-Edit ダウンロード中..."
+    hf_download Comfy-Org/Qwen-Image-Edit_ComfyUI "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" "$BASE"
+  else
+    echo "Qwen-Image-Edit 既に存在 → スキップ"
+  fi
 else
-  echo "Qwen-Image-Edit 既に存在 → スキップ"
+  echo "Qwen-Image-Edit ダウンロードをスキップします (--skip-qwen)"
 fi
 
 # 3. ACE Step 1.5（音楽生成・Turbo AIO）
-if [ ! -f "$BASE/checkpoints/ace_step_1.5_turbo_aio.safetensors" ]; then
-  echo "ACE Step 1.5 Turbo ダウンロード中..."
-  hf_download Comfy-Org/ace_step_1.5_ComfyUI_files "checkpoints/ace_step_1.5_turbo_aio.safetensors" "$BASE"
+if [ "$SKIP_ACE" = false ]; then
+  if [ ! -f "$BASE/checkpoints/ace_step_1.5_turbo_aio.safetensors" ]; then
+    echo "ACE Step 1.5 Turbo ダウンロード中..."
+    hf_download Comfy-Org/ace_step_1.5_ComfyUI_files "checkpoints/ace_step_1.5_turbo_aio.safetensors" "$BASE"
+  else
+    echo "ACE Step 1.5 既に存在 → スキップ"
+  fi
 else
-  echo "ACE Step 1.5 既に存在 → スキップ"
+  echo "ACE Step 1.5 ダウンロードをスキップします (--skip-ace)"
 fi
 
 # 4. Flux（ストーリーボード画像生成・最強推奨）
-if [ ! -f "$BASE/unet/flux1-schnell.safetensors" ]; then
-  echo "Flux.1-schnell ダウンロード中（ストーリーボード用）..."
-  hf_download black-forest-labs/FLUX.1-schnell "flux1-schnell.safetensors" "$BASE/unet"
+if [ "$SKIP_FLUX" = false ]; then
+  if [ ! -f "$BASE/unet/flux1-schnell.safetensors" ]; then
+    echo "Flux.1-schnell ダウンロード中（ストーリーボード用）..."
+    hf_download black-forest-labs/FLUX.1-schnell "flux1-schnell.safetensors" "$BASE/unet"
+  else
+    echo "Flux 既に存在 → スキップ"
+  fi
 else
-  echo "Flux 既に存在 → スキップ"
+  echo "Flux ダウンロードをスキップします (--skip-flux)"
 fi
 
 # 5. Z-Image Turbo（軽量代替希望の場合のみ手動実行推奨）
