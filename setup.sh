@@ -14,7 +14,7 @@ BASE=$COMFY/models
 CUSTOM=$COMFY/custom_nodes
 
 echo "=== huggingface-cli & 高速ダウンロード準備（RunPod最適化）==="
-pip install -U "huggingface_hub[cli]" hf_transfer -q
+pip install -U huggingface_hub hf_transfer -q
 export PATH="$HOME/.local/bin:$PATH"          # PATH対策
 export HF_HUB_ENABLE_HF_TRANSFER=1           # 爆速モード（RunPodで超おすすめ）
 echo "hf_transfer 高速モード ON"
@@ -34,15 +34,6 @@ comfyui:
      vae: models/vae/
 EOF
 
-echo "=== カスタムノードインストール ==="
-mkdir -p $CUSTOM
-[ ! -d "$CUSTOM/MuffinsVRFixes" ] && git clone https://github.com/Ragamuffin20/MuffinsVRFixes.git $CUSTOM/MuffinsVRFixes
-[ ! -d "$CUSTOM/ComfyUI-LTXVideo" ] && git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git $CUSTOM/ComfyUI-LTXVideo
-[ ! -d "$CUSTOM/ComfyUI-KJNodes" ] && git clone https://github.com/kijai/ComfyUI-KJNodes.git $CUSTOM/ComfyUI-KJNodes
-
-for dir in $CUSTOM/*/; do
-  if [ -f "$dir/requirements.txt" ]; then pip install -r "$dir/requirements.txt" -q; fi
-done
 
 echo "=== 古いLTX-Video 19B（Kijai/Phr00t） ==="
 COMFY="${COMFY:-$HOME/ComfyUI}"
@@ -70,8 +61,7 @@ hf_dl() {
   fi
   echo "[DL] $repo / $file → $dest"
   hf download "$repo" "$file" \
-    --local-dir "$dest" \
-    --local-dir-use-symlinks False
+    --local-dir "$dest"
 }
 
 # ===== カスタムノード git clone =====
@@ -100,6 +90,14 @@ clone_node "https://github.com/ltdrdata/ComfyUI-Impact-Pack"         "ComfyUI-Im
 clone_node "https://github.com/kijai/ComfyUI-KJNodes"                "ComfyUI-KJNodes"
 clone_node "https://github.com/kijai/ComfyUI-LTXVideo"               "ComfyUI-LTXVideo"
 clone_node "https://github.com/cubiq/ComfyUI_essentials"             "ComfyUI_essentials"
+
+echo "=== カスタムノードの依存関係をインストール ==="
+for dir in $CUSTOM/*/; do
+  if [ -f "$dir/requirements.txt" ]; then
+    echo "Installing requirements for $(basename "$dir")..."
+    pip install -r "$dir/requirements.txt" -q
+  fi
+done
 
 echo ""
 echo "=== [2/5] Wan 2.1 VACE モデル (UNet / LoRA / Text Encoder / VAE) ==="
@@ -165,45 +163,45 @@ hf_dl "Kijai/DepthAnythingV2-safetensors" \
 hf download Lightricks/LTX-2.3 \
   ltx-2.3-22b-distilled.safetensors \
   ltx-2.3-22b-dev.safetensors \
-  --local-dir "$BASE/checkpoints/LTX-2.3" --local-dir-use-symlinks False
+  --local-dir "$BASE/checkpoints/LTX-2.3"
 
 # 必須LoRA（公式が指定する正しいフォルダ = loras）
 hf download Lightricks/LTX-2.3 \
   ltx-2.3-22b-distilled-lora-384.safetensors \
-  --local-dir "$BASE/loras" --local-dir-use-symlinks False
+  --local-dir "$BASE/loras"
 
 hf download Lightricks/LTX-2.3 \
   ltx-2.3-22b-distilled-lora-dynamic_fro09_avg_rank_105_bf16.safetensors \
-  --local-dir "$BASE/loras" --local-dir-use-symlinks False
+  --local-dir "$BASE/loras"
 
 # アップスケーラー
 hf download Lightricks/LTX-2.3 \
   ltx-2.3-spatial-upscaler-x2-1.0.safetensors \
   ltx-2.3-spatial-upscaler-x1.5-1.0.safetensors \
   ltx-2.3-temporal-upscaler-x2-1.0.safetensors \
-  --local-dir "$BASE/latent_upscale_models" --local-dir-use-symlinks False
+  --local-dir "$BASE/latent_upscale_models"
 
 hf download Kim2091/ClearRealityV1 \
   4x-ClearRealityV1_Soft.pth \
-  --local-dir "$BASE/latent_upscale_models" --local-dir-use-symlinks False
+  --local-dir "$BASE/latent_upscale_models"
 
 echo "=== オプション：おすすめControl LoRA（入れたい人だけ） ==="
 # 入れたい場合はコメント解除してください（RunPodで30秒程度）
  echo "IC-LoRA Union-Control（最強おすすめ）ダウンロード中..."
  hf download Lightricks/LTX-2.3-22b-IC-LoRA-Union-Control \
    ltx-2.3-22b-ic-lora-union-control-ref0.5.safetensors \
-   --local-dir "$BASE/loras" --local-dir-use-symlinks False
+   --local-dir "$BASE/loras"
 
  echo "Inpainting / Motion-Track-Controlも必要なら追加..."
  hf download Lightricks/LTX-2.3-22b-IC-LoRA-Inpainting \
-   ltx-2.3-22b-ic-lora-inpainting.safetensors --local-dir "$BASE/loras" --local-dir-use-symlinks False
+   ltx-2.3-22b-ic-lora-inpainting.safetensors --local-dir "$BASE/loras"
  hf download Lightricks/LTX-2.3-22b-IC-LoRA-Motion-Track-Control \
-   ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors --local-dir "$BASE/loras" --local-dir-use-symlinks False
+   ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors --local-dir "$BASE/loras"
 
 echo "=== Gemma-3 12B（gatedモデル） ==="
 if [ -n "$HF_TOKEN" ]; then
   hf download google/gemma-3-12b-it-qat-q4_0-unquantized \
-    --local-dir "$BASE/text_encoders/gemma-3-12b-it-qat-q4_0-unquantized" --local-dir-use-symlinks False
+    --local-dir "$BASE/text_encoders/gemma-3-12b-it-qat-q4_0-unquantized"
 else
   echo "⚠️ HF_TOKENが未設定です。RunPodのEnvironment VariablesにHF_TOKENを設定してから再実行してください。"
 fi

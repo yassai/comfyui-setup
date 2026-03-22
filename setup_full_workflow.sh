@@ -15,7 +15,7 @@ BASE=$COMFY/models
 CUSTOM=$COMFY/custom_nodes
 
 echo "=== huggingface-cli & 高速ダウンロード準備 ==="
-pip install -U "huggingface_hub[cli]" hf_transfer -q
+pip install -U huggingface_hub hf_transfer -q
 export PATH="$HOME/.local/bin:$PATH"
 export HF_HUB_ENABLE_HF_TRANSFER=1
 echo "hf_transfer 爆速モード ON"
@@ -73,7 +73,7 @@ echo "=== モデルダウンロード（存在したら完全スキップ）==="
 # 1. LTX-2.3（動画生成の主力・Distilled推奨）
 if [ ! -f "$BASE/checkpoints/ltx-2.3-22b-distilled.safetensors" ]; then
   echo "LTX-2.3 Distilled ダウンロード中..."
-  huggingface-cli download Lightricks/LTX-2.3 --include "ltx-2.3-22b-distilled.safetensors" --local-dir "$BASE/checkpoints" --local-dir-use-symlinks False
+  hf download Lightricks/LTX-2.3 --include "ltx-2.3-22b-distilled.safetensors" --local-dir "$BASE/checkpoints"
 else
   echo "LTX-2.3 既に存在 → スキップ"
 fi
@@ -81,7 +81,7 @@ fi
 # 2. Qwen-Image-Edit（編集特化・FP8高速版）
 if [ ! -f "$BASE/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" ]; then
   echo "Qwen-Image-Edit ダウンロード中..."
-  huggingface-cli download Comfy-Org/Qwen-Image-Edit_ComfyUI --include "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" --local-dir "$BASE" --local-dir-use-symlinks False
+  hf download Comfy-Org/Qwen-Image-Edit_ComfyUI --include "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" --local-dir "$BASE"
 else
   echo "Qwen-Image-Edit 既に存在 → スキップ"
 fi
@@ -89,7 +89,7 @@ fi
 # 3. ACE Step 1.5（音楽生成・Turbo AIO）
 if [ ! -f "$BASE/checkpoints/ace_step_1.5_turbo_aio.safetensors" ]; then
   echo "ACE Step 1.5 Turbo ダウンロード中..."
-  huggingface-cli download Comfy-Org/ace_step_1.5_ComfyUI_files --include "checkpoints/ace_step_1.5_turbo_aio.safetensors" --local-dir "$BASE" --local-dir-use-symlinks False
+  hf download Comfy-Org/ace_step_1.5_ComfyUI_files --include "checkpoints/ace_step_1.5_turbo_aio.safetensors" --local-dir "$BASE"
 else
   echo "ACE Step 1.5 既に存在 → スキップ"
 fi
@@ -97,13 +97,13 @@ fi
 # 4. Flux（ストーリーボード画像生成・最強推奨）
 if [ ! -f "$BASE/unet/flux1-schnell.safetensors" ]; then
   echo "Flux.1-schnell ダウンロード中（ストーリーボード用）..."
-  huggingface-cli download black-forest-labs/FLUX.1-schnell --include "flux1-schnell.safetensors" --local-dir "$BASE/unet" --local-dir-use-symlinks False
+  hf download black-forest-labs/FLUX.1-schnell --include "flux1-schnell.safetensors" --local-dir "$BASE/unet"
 else
   echo "Flux 既に存在 → スキップ"
 fi
 
 # 5. Z-Image Turbo（軽量代替希望の場合のみ手動実行推奨）
-# huggingface-cli download Tongyi-MAI/Z-Image --include "z_image_turbo_bf16.safetensors" --local-dir "$BASE/diffusion_models"
+# hf download Tongyi-MAI/Z-Image --include "z_image_turbo_bf16.safetensors" --local-dir "$BASE/diffusion_models"
 
 echo "=== セットアップ完了！ ==="
 echo "ComfyUIを再起動してください（RunPodならContainer Restart）"
