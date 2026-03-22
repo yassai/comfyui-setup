@@ -20,6 +20,23 @@ export PATH="$HOME/.local/bin:$PATH"
 export HF_HUB_ENABLE_HF_TRANSFER=1
 echo "hf_transfer 爆速モード ON"
 
+# CLIのコマンド名を自動判別 (huggingface-cli または hf)
+if command -v hf > /dev/null; then
+  HF_CMD="hf"
+elif command -v huggingface-cli > /dev/null; then
+  HF_CMD="huggingface-cli"
+else
+  # 一般的なパスを確認
+  if [ -f "$HOME/.local/bin/huggingface-cli" ]; then
+    HF_CMD="$HOME/.local/bin/huggingface-cli"
+  elif [ -f "$HOME/.local/bin/hf" ]; then
+    HF_CMD="$HOME/.local/bin/hf"
+  else
+    HF_CMD="huggingface-cli"
+  fi
+fi
+echo "使用するCLI: $HF_CMD"
+
 echo "=== extra_model_paths.yaml 設定 ==="
 cat > $COMFY/extra_model_paths.yaml << EOF
 comfyui:
@@ -47,7 +64,12 @@ for repo in \
   if [ ! -d "$CUSTOM/$name" ]; then
     echo "インストール: $name"
     git clone --depth 1 https://github.com/$repo "$CUSTOM/$name"
-    cd "$CUSTOM/$name" && pip install -r requirements.txt -q || echo "requirementsなし"
+    cd "$CUSTOM/$name"
+    if [ -f "requirements.txt" ]; then
+      pip install -r requirements.txt -q || echo "$name の依存関係インストールに失敗"
+    else
+      echo "$name: requirements.txtなし"
+    fi
     cd $COMFY
   else
     echo "既に存在: $name → スキップ"
@@ -63,17 +85,35 @@ for repo in \
   if [ ! -d "$CUSTOM/$name" ]; then
     echo "オプションインストール: $name"
     git clone --depth 1 https://github.com/$repo "$CUSTOM/$name"
-    cd "$CUSTOM/$name" && pip install -r requirements.txt -q || true
+    cd "$CUSTOM/$name"
+    if [ -f "requirements.txt" ]; then
+      pip install -r requirements.txt -q || true
+    fi
     cd $COMFY
   fi
 done
 
 echo "=== モデルダウンロード（存在したら完全スキップ）==="
 
+# ダウンロード用ヘルパー関数（CLIの違いを吸収）
+hf_download() {
+  local repo=$1
+  local include=$2
+  local target=$3
+
+  if [ "$HF_CMD" = "hf" ]; then
+    # hf コマンドの場合
+    $HF_CMD download "$repo" --include "$include" --local-dir "$target"
+  else
+    # huggingface-cli の場合
+    $HF_CMD download "$repo" --include "$include" --local-dir "$target" --local-dir-use-symlinks False
+  fi
+}
+
 # 1. LTX-2.3（動画生成の主力・Distilled推奨）
 if [ ! -f "$BASE/checkpoints/ltx-2.3-22b-distilled.safetensors" ]; then
   echo "LTX-2.3 Distilled ダウンロード中..."
-  huggingface-cli download Lightricks/LTX-2.3 --include "ltx-2.3-22b-distilled.safetensors" --local-dir "$BASE/checkpoints" --local-dir-use-symlinks False
+  hf_download Lightricks/LTX-2.3 "ltx-2.3-22b-distilled.safetensors" "$BASE/checkpoints"
 else
   echo "LTX-2.3 既に存在 → スキップ"
 fi
@@ -81,7 +121,7 @@ fi
 # 2. Qwen-Image-Edit（編集特化・FP8高速版）
 if [ ! -f "$BASE/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" ]; then
   echo "Qwen-Image-Edit ダウンロード中..."
-  huggingface-cli download Comfy-Org/Qwen-Image-Edit_ComfyUI --include "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" --local-dir "$BASE" --local-dir-use-symlinks False
+  hf_download Comfy-Org/Qwen-Image-Edit_ComfyUI "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors" "$BASE"
 else
   echo "Qwen-Image-Edit 既に存在 → スキップ"
 fi
@@ -89,7 +129,7 @@ fi
 # 3. ACE Step 1.5（音楽生成・Turbo AIO）
 if [ ! -f "$BASE/checkpoints/ace_step_1.5_turbo_aio.safetensors" ]; then
   echo "ACE Step 1.5 Turbo ダウンロード中..."
-  huggingface-cli download Comfy-Org/ace_step_1.5_ComfyUI_files --include "checkpoints/ace_step_1.5_turbo_aio.safetensors" --local-dir "$BASE" --local-dir-use-symlinks False
+  hf_download Comfy-Org/ace_step_1.5_ComfyUI_files "checkpoints/ace_step_1.5_turbo_aio.safetensors" "$BASE"
 else
   echo "ACE Step 1.5 既に存在 → スキップ"
 fi
@@ -97,13 +137,13 @@ fi
 # 4. Flux（ストーリーボード画像生成・最強推奨）
 if [ ! -f "$BASE/unet/flux1-schnell.safetensors" ]; then
   echo "Flux.1-schnell ダウンロード中（ストーリーボード用）..."
-  huggingface-cli download black-forest-labs/FLUX.1-schnell --include "flux1-schnell.safetensors" --local-dir "$BASE/unet" --local-dir-use-symlinks False
+  hf_download black-forest-labs/FLUX.1-schnell "flux1-schnell.safetensors" "$BASE/unet"
 else
   echo "Flux 既に存在 → スキップ"
 fi
 
 # 5. Z-Image Turbo（軽量代替希望の場合のみ手動実行推奨）
-# huggingface-cli download Tongyi-MAI/Z-Image --include "z_image_turbo_bf16.safetensors" --local-dir "$BASE/diffusion_models"
+# hf_download Tongyi-MAI/Z-Image "z_image_turbo_bf16.safetensors" "$BASE/diffusion_models"
 
 echo "=== セットアップ完了！ ==="
 echo "ComfyUIを再起動してください（RunPodならContainer Restart）"
