@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# 引数の解析
+SKIP_LTX_BASE=false
+for arg in "$@"; do
+  case $arg in
+    --skip-ltx-base)
+      SKIP_LTX_BASE=true
+      ;;
+  esac
+done
+
 echo "=== ComfyUI パス自動検出 ==="
 COMFY=""
 for candidate in /app/ComfyUI /workspace/ComfyUI /workspace/runpod-slim/ComfyUI /opt/ComfyUI /root/ComfyUI /home/user/ComfyUI; do
@@ -160,10 +170,14 @@ hf_dl "Kijai/DepthAnythingV2-safetensors" \
 
 
 # ベースモデル（checkpoints）
-hf download Lightricks/LTX-2.3 \
-  ltx-2.3-22b-distilled.safetensors \
-  ltx-2.3-22b-dev.safetensors \
-  --local-dir "$BASE/checkpoints/LTX-2.3"
+if [ "$SKIP_LTX_BASE" = false ]; then
+  hf download Lightricks/LTX-2.3 \
+    ltx-2.3-22b-distilled.safetensors \
+    ltx-2.3-22b-dev.safetensors \
+    --local-dir "$BASE/checkpoints/LTX-2.3"
+else
+  echo "LTX-2.3 ベースモデルのダウンロードをスキップします (--skip-ltx-base)"
+fi
 
 # 必須LoRA（公式が指定する正しいフォルダ = loras）
 hf download Lightricks/LTX-2.3 \
