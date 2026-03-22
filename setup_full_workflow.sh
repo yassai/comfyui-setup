@@ -15,7 +15,7 @@ BASE=$COMFY/models
 CUSTOM=$COMFY/custom_nodes
 
 echo "=== huggingface-cli & 高速ダウンロード準備 ==="
-pip install -U "huggingface_hub[cli]" hf_transfer -q
+pip install -U huggingface_hub hf_transfer -q
 export PATH="$HOME/.local/bin:$PATH"
 export HF_HUB_ENABLE_HF_TRANSFER=1
 echo "hf_transfer 爆速モード ON"
